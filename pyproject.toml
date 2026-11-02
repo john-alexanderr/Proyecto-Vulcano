@@ -1,0 +1,22 @@
+[project]
+name = "vulcano-telemetry"
+version = "0.1.0"
+description = "Signed Vulcano webhook receiver and asynchronous SQS event dispatcher"
+requires-python = ">=3.14"
+
+[project.scripts]
+vulcano-telemetry = "vulcano_telemetry.app_operator:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = ["localstack: opt-in integration tests requiring a running LocalStack service"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E722: bare except. BLE001: blind except (Exception / BaseException).
+select = ["E", "F", "B", "BLE"]
