@@ -16,8 +16,7 @@
 
 Vulcano Pay recibe eventos de pago mediante webhooks, verifica su autenticidad y los encola para que un worker los entregue a un destino configurado. LocalStack emula SQS durante el desarrollo, mientras que los logs JSON se escriben de forma no bloqueante y se archivan comprimidos con Gzip.
 
-> [!NOTE]
-> El proyecto apunta a **Python 3.14** según la rúbrica. La última verificación local se ejecutó con Python 3.12.3; por lo tanto, **Python 3.14 todavía no está verificado**.
+
 
 ## 🧭 Contenido
 
