@@ -1,39 +1,39 @@
-"""Typed errors raised by the Vulcano telemetry pipeline."""
+"""Errores tipados generados por el flujo de telemetría de Vulcano."""
 
 
 class VulcanoError(Exception):
-    """Base class for expected application errors."""
+    """Clase base para los errores esperados de la aplicación."""
 
 
 class ConfigurationError(VulcanoError):
-    """Raised when runtime configuration is invalid or incomplete."""
+    """Se genera cuando la configuración de ejecución es inválida o incompleta."""
 
 
 class CorruptedMessageError(VulcanoError):
-    """Raised when an SQS message does not contain a valid event envelope."""
+    """Se genera cuando un mensaje de SQS no contiene un sobre de evento válido."""
 
 
 EventValidationError = CorruptedMessageError
 
 
 class WebhookSignatureError(VulcanoError):
-    """Raised when a signature is missing, malformed, or does not match."""
+    """Se genera cuando falta una firma, está mal formada o no coincide."""
 
 
 class WebhookTimestampError(VulcanoError):
-    """Raised when a signed timestamp is stale or too far in the future."""
+    """Se genera cuando la marca temporal firmada está vencida o demasiado adelantada."""
 
 
 class SQSConnectionError(VulcanoError):
-    """Raised when an SQS request fails or its response is unusable."""
+    """Se genera cuando falla una solicitud a SQS o su respuesta no se puede usar."""
 
 
 class QueueTimeoutError(SQSConnectionError):
-    """Raised when a synchronous SQS operation times out."""
+    """Se genera cuando vence el tiempo de espera de una operación síncrona de SQS."""
 
 
 class WebhookDeliveryError(VulcanoError):
-    """Raised when a configured destination rejects or cannot receive an event."""
+    """Se genera cuando el destino configurado rechaza un evento o no puede recibirlo."""
 
 
 SignatureValidationError = WebhookSignatureError
@@ -47,4 +47,4 @@ DeliveryError = WebhookDeliveryError
 
 
 class LoggingError(VulcanoError):
-    """Raised when asynchronous logging cannot be initialized."""
+    """Se genera cuando no se puede inicializar el registro asíncrono."""

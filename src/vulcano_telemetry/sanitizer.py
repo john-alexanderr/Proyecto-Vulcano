@@ -1,4 +1,4 @@
-"""Input validation shared by configuration and event processing."""
+"""Validación de entradas compartida por la configuración y el procesamiento de eventos."""
 
 from __future__ import annotations
 
@@ -12,21 +12,21 @@ _DLQ_NAME = re.compile(r"^vulcano-[a-z0-9-]+-dlq$")
 
 
 def parse_queue_name(value: str) -> str:
-    """Validate the assignment's standard Vulcano queue naming convention."""
+    """Valida la convención de nombres de cola estándar de Vulcano definida por la consigna."""
     if not isinstance(value, str) or _QUEUE_NAME.fullmatch(value) is None:
         raise ValueError("queue name must match ^vulcano-[a-z0-9-]+-queue$")
     return value
 
 
 def parse_dlq_name(value: str) -> str:
-    """Validate the documented dead-letter queue naming convention."""
+    """Valida la convención de nombres documentada para la cola de mensajes fallidos."""
     if not isinstance(value, str) or _DLQ_NAME.fullmatch(value) is None:
         raise ValueError("dead-letter queue name must match ^vulcano-[a-z0-9-]+-dlq$")
     return value
 
 
 def parse_queue_identifier(value: str) -> str:
-    """Validate a configured main-queue or dead-letter-queue name."""
+    """Valida el nombre configurado de la cola principal o de la cola de mensajes fallidos."""
     try:
         return parse_queue_name(value)
     except ValueError:
@@ -34,7 +34,7 @@ def parse_queue_identifier(value: str) -> str:
 
 
 def parse_wait_time(value: int | str | bool) -> int:
-    """Return an SQS long-poll duration restricted to 1 through 20 seconds."""
+    """Devuelve una duración de consulta larga de SQS entre 1 y 20 segundos."""
     if isinstance(value, bool):
         raise ValueError("WaitTimeSeconds must be an integer from 1 to 20")
     try:
@@ -47,7 +47,7 @@ def parse_wait_time(value: int | str | bool) -> int:
 
 
 def parse_webhook_url(value: str) -> str:
-    """Require a valid absolute HTTP(S) URL with a host and no credentials."""
+    """Exige una URL HTTP(S) absoluta válida, con host y sin credenciales."""
     if not isinstance(value, str) or not value or value != value.strip():
         raise ValueError("webhook URL must be an absolute HTTP(S) URL")
     try:
@@ -69,7 +69,7 @@ def parse_webhook_url(value: str) -> str:
 
 
 def parse_secret_key(value: str) -> str:
-    """Require a non-empty signing key of at least 16 characters."""
+    """Exige una clave de firma de al menos 16 caracteres y no vacía."""
     if not isinstance(value, str) or len(value) < 16 or value.isspace():
         raise ValueError("webhook secret must contain at least 16 characters")
     normalized = value.strip().casefold()
@@ -86,7 +86,7 @@ def parse_secret_key(value: str) -> str:
 
 
 def validate_queue_name(value: str, *, setting_name: str = "queue name") -> str:
-    """Compatibility validator that raises the application's config error."""
+    """Validador compatible que genera el error de configuración de la aplicación."""
     try:
         return parse_queue_name(value)
     except ValueError as err:
@@ -94,7 +94,7 @@ def validate_queue_name(value: str, *, setting_name: str = "queue name") -> str:
 
 
 def validate_wait_time(value: int | str | bool) -> int:
-    """Compatibility validator for project long-poll values."""
+    """Validador compatible para los valores de consulta larga del proyecto."""
     try:
         return parse_wait_time(value)
     except ValueError as err:
@@ -102,7 +102,7 @@ def validate_wait_time(value: int | str | bool) -> int:
 
 
 def validate_http_url(value: str, *, setting_name: str = "URL") -> str:
-    """Compatibility validator for configured HTTP destinations."""
+    """Validador compatible para los destinos HTTP configurados."""
     try:
         return parse_webhook_url(value)
     except ValueError as err:
@@ -110,7 +110,7 @@ def validate_http_url(value: str, *, setting_name: str = "URL") -> str:
 
 
 def validate_secret(value: str | None) -> str:
-    """Compatibility validator for configured HMAC keys."""
+    """Validador compatible para las claves HMAC configuradas."""
     try:
         if value is None:
             raise ValueError("webhook secret must contain at least 16 characters")

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Bootstrap LocalStack SQS resources for TP-2.
-# Credentials come from the environment, never from code.
+# Prepara los recursos SQS de LocalStack para TP-2.
+# Las credenciales se obtienen del entorno, nunca del código.
 set -euo pipefail
 
 ENDPOINT="${VULCANO_SQS_ENDPOINT_URL:-http://localhost:4566}"
@@ -33,7 +33,7 @@ DLQ_URL="$(aws_local sqs get-queue-url --queue-name "$DLQ_NAME" --query QueueUrl
 QUEUE_URL="$(aws_local sqs get-queue-url --queue-name "$QUEUE_NAME" --query QueueUrl --output text)"
 DLQ_ARN="$(aws_local sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names QueueArn --query 'Attributes.QueueArn' --output text)"
 
-# RedrivePolicy is JSON nested inside the attributes JSON; use Python to encode both levels.
+# RedrivePolicy es JSON anidado dentro del JSON de atributos; se usa Python para codificar ambos niveles.
 ATTRIBUTES="$(python3 -c 'import json,sys; print(json.dumps({"VisibilityTimeout": sys.argv[2], "RedrivePolicy": json.dumps({"deadLetterTargetArn": sys.argv[1], "maxReceiveCount": sys.argv[3]})}))' "$DLQ_ARN" "$VISIBILITY_TIMEOUT" "$MAX_RECEIVE_COUNT")"
 aws_local sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes "$ATTRIBUTES"
 

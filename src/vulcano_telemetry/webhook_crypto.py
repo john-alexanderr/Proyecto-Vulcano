@@ -1,4 +1,4 @@
-"""Timestamp-prefixed HMAC-SHA256 signing over unchanged webhook bytes."""
+"""Firma HMAC-SHA256 con marca temporal sobre los bytes originales del webhook."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def _validated_secret(secret: str) -> bytes:
 
 
 def generate_signature(secret: str, timestamp: int, payload_bytes: bytes) -> str:
-    """Return ``t=<timestamp>,v1=<hex>`` for the exact raw payload bytes."""
+    """Devuelve `t=<timestamp>,v1=<hex>` para los bytes exactos del contenido."""
     key = _validated_secret(secret)
     if (
         isinstance(timestamp, bool)
@@ -45,11 +45,11 @@ def verify_signature(
     payload_bytes: bytes,
     tolerance_sec: int = 300,
 ) -> bool:
-    """Verify an ASCII timestamped signature and return true only on success.
+    """Verifica una firma ASCII con marca temporal y devuelve verdadero solo si es válida.
 
-    Malformed or mismatched signatures raise ``WebhookSignatureError``;
-    timestamps outside the inclusive tolerance window raise
-    ``WebhookTimestampError``.
+    Las firmas mal formadas o que no coinciden generan `WebhookSignatureError`;
+    las marcas temporales fuera de la tolerancia inclusiva generan
+    `WebhookTimestampError`.
     """
     if not isinstance(header_value, str):
         raise WebhookSignatureError("Webhook signature header is missing")

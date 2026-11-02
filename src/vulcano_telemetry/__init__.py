@@ -1,4 +1,4 @@
-"""Public API for the signed Vulcano webhook-to-SQS event pipeline."""
+"""API pública del flujo firmado de eventos webhook de Vulcano hacia SQS."""
 
 from .core_sqs import (
     CoreSQS,

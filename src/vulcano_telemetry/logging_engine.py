@@ -1,4 +1,4 @@
-"""Nonblocking JSON logging with recursive safe exception and gzip serialization."""
+"""Registro JSON no bloqueante con serialización recursiva y segura de excepciones y gzip."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def _serialize_exception(
     error: BaseException,
     seen: frozenset[int] = frozenset(),
 ) -> dict[str, Any]:
-    """Serialize exception relationships without exception messages or tracebacks."""
+    """Serializa relaciones entre excepciones sin incluir sus mensajes ni trazas."""
     identity = id(error)
     if identity in seen:
         return {"type": type(error).__name__, "cycle": True}
@@ -56,7 +56,9 @@ def _serialize_exception(
 
 
 class AsyncJSONFormatter(logging.Formatter):
-    """Format UTC JSON with correlation fields and safe exception structures."""
+    """Formatea JSON con marcas temporales UTC, campos de correlación
+    y estructuras seguras de excepción.
+    """
 
     def format(self, record: logging.LogRecord) -> str:
         timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc)
@@ -87,7 +89,7 @@ class AsyncJSONFormatter(logging.Formatter):
 
 
 class AsyncQueueHandler(logging.handlers.QueueHandler):
-    """Enqueue a safe record copy without formatting exceptions on caller threads."""
+    """Encola una copia segura sin formatear excepciones en el hilo de origen."""
 
     def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
         prepared = copy.copy(record)
@@ -99,7 +101,7 @@ class AsyncQueueHandler(logging.handlers.QueueHandler):
 
 
 class GzipRotatingFileHandler(logging.handlers.RotatingFileHandler):
-    """Rotate at the assignment's 2 MiB limit and atomically publish gzip archives."""
+    """Rota al límite de 2 MiB de la consigna y publica archivos gzip de forma atómica."""
 
     def __init__(
         self,
@@ -143,7 +145,7 @@ class GzipRotatingFileHandler(logging.handlers.RotatingFileHandler):
 
 
 class LoggingRuntime:
-    """Own a QueueHandler/QueueListener pair and stop it deterministically."""
+    """Administra un par QueueHandler/QueueListener y lo detiene de forma determinista."""
 
     def __init__(
         self,
@@ -161,7 +163,7 @@ class LoggingRuntime:
         self._closed = False
 
     def close(self) -> None:
-        """Drain queued records, stop the listener, and close the rotated file."""
+        """Vacía los registros en cola, detiene el listener y cierra el archivo rotado."""
         if self._closed:
             return
         self._logger.removeHandler(self._queue_handler)
@@ -182,7 +184,7 @@ def configure_logging(
     backup_count: int = LOG_BACKUP_COUNT,
     logger: logging.Logger | None = None,
 ) -> LoggingRuntime:
-    """Start queue-backed JSON logging; file I/O runs only on QueueListener."""
+    """Inicia el registro JSON en cola; el listener realiza las operaciones de archivo."""
     active_logger = logging.getLogger() if logger is None else logger
     path = Path(log_path)
     try:

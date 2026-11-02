@@ -1,4 +1,4 @@
-"""Shared deterministic fixtures for offline unit tests."""
+"""Fixtures deterministas compartidas por las pruebas unitarias sin conexión."""
 
 from __future__ import annotations
 

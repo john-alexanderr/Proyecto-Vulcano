@@ -47,7 +47,8 @@ def test_localstack_redrives_undeleted_receipt_to_dlq(localstack_sqs_factory) ->
     first_receipt = sqs.receive_message(wait_time_seconds=1)
     assert first_receipt is not None
     assert first_receipt.body == body
-    # Deliberately do not delete: SQS visibility and RedrivePolicy own retry behavior.
+    # Se deja deliberadamente sin eliminar: la visibilidad de SQS y su
+    # RedrivePolicy controlan los reintentos.
 
     deadline = time.monotonic() + 30
     dead_letter = None
@@ -57,7 +58,7 @@ def test_localstack_redrives_undeleted_receipt_to_dlq(localstack_sqs_factory) ->
             wait_time_seconds=1,
         )
         if dead_letter is None:
-            # Additional undeleted receipts trigger the configured receive threshold.
+            # Los recibos adicionales sin eliminar activan el umbral de recepción configurado.
             sqs.receive_message(wait_time_seconds=1)
     assert dead_letter is not None
     assert dead_letter.body == body

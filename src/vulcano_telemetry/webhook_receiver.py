@@ -1,4 +1,4 @@
-"""FastAPI receiver that authenticates raw request bytes before enqueueing."""
+"""Receptor FastAPI que autentica los bytes originales de la solicitud antes de encolarla."""
 
 from __future__ import annotations
 
@@ -27,7 +27,9 @@ def create_app(
     sqs: CoreSQS,
     logger: logging.Logger | None = None,
 ) -> FastAPI:
-    """Build an injectable ASGI app; no settings, clients, or network are created here."""
+    """Crea una aplicación ASGI inyectable sin cargar configuración,
+    clientes ni conexiones de red.
+    """
     try:
         secret = parse_secret_key(settings.webhook_secret)
     except ValueError as err:

@@ -1,4 +1,4 @@
-"""Synchronous Boto3 SQS client, producer/consumer functions, and DLQ setup."""
+"""Cliente síncrono de Boto3 para SQS, funciones de productor/consumidor y configuración de DLQ."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ _LOCALSTACK_HOSTS = {"localhost", "localstack", "127.0.0.1", "::1"}
 
 @dataclass(frozen=True)
 class QueueMessage:
-    """The SQS fields needed to validate, deliver, and acknowledge a message."""
+    """Campos de SQS necesarios para validar, entregar y confirmar un mensaje."""
 
     message_id: str
     receipt_handle: str
@@ -40,7 +40,7 @@ class QueueMessage:
 
 
 def get_sqs_client(endpoint_url: str | None = DEFAULT_LOCALSTACK_ENDPOINT) -> Any:
-    """Create a synchronous SQS client, using dummy credentials only on LocalStack."""
+    """Crea un cliente síncrono de SQS y usa credenciales ficticias solo con LocalStack."""
     parameters: dict[str, object] = {
         "region_name": os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
     }
@@ -83,7 +83,7 @@ def send_event(
     *,
     queue_name: str = "configured-queue",
 ) -> str:
-    """Send the unchanged event string and assignment-required message attributes."""
+    """Envía la cadena del evento sin cambios y los atributos de mensaje requeridos."""
     try:
         response = client.send_message(
             QueueUrl=queue_url,
@@ -109,7 +109,9 @@ def receive_events(
     max_messages: int = 1,
     queue_name: str = "configured-queue",
 ) -> list[QueueMessage]:
-    """Receive one SQS message by default; empty long polls return an empty list."""
+    """Recibe un mensaje de SQS por defecto; las consultas vacías
+    devuelven una lista vacía.
+    """
     wait_time = parse_wait_time(wait_time_seconds)
     if (
         isinstance(max_messages, bool)
@@ -159,7 +161,7 @@ def delete_event(
     *,
     queue_name: str = "configured-queue",
 ) -> None:
-    """Delete a receipt after successful delivery; failures are left for redrive."""
+    """Elimina un recibo tras una entrega exitosa; los fallos quedan sujetos al reenvío de SQS."""
     try:
         client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
     except (ClientError, BotoCoreError) as err:
@@ -167,7 +169,9 @@ def delete_event(
 
 
 class CoreSQS:
-    """Thin queue adapter; boto3 calls remain synchronous and are offloaded by async roles."""
+    """Adaptador de colas; los roles asíncronos delegan las llamadas
+    síncronas de Boto3.
+    """
 
     def __init__(self, settings: Settings, *, client: Any | None = None) -> None:
         self.settings = settings
@@ -178,7 +182,7 @@ class CoreSQS:
         self._queue_urls: dict[str, str] = {}
 
     def ensure_queues(self) -> None:
-        """Create standard queues and configure main-queue redrive to the DLQ."""
+        """Crea colas estándar y configura el reenvío a la DLQ."""
         try:
             dead_letter_url = self._client.create_queue(
                 QueueName=self.settings.dlq_name
@@ -212,7 +216,7 @@ class CoreSQS:
         self._queue_urls[self.settings.dlq_name] = dead_letter_url
 
     def get_queue_url(self, queue_name: str) -> str:
-        """Resolve a configured Vulcano main or dead-letter queue URL."""
+        """Resuelve la URL configurada de la cola principal o de la DLQ de Vulcano."""
         name = parse_queue_identifier(queue_name)
         if name not in self._queue_urls:
             try:
@@ -264,7 +268,7 @@ class CoreSQS:
         queue_name: str | None = None,
         wait_time_seconds: int | None = None,
     ) -> QueueMessage | None:
-        """Compatibility single-message consumer for existing callers."""
+        """Consumidor de un mensaje para mantener la compatibilidad con clientes existentes."""
         messages = self.receive_events(
             queue_name=queue_name,
             wait_time_seconds=wait_time_seconds,
@@ -286,7 +290,7 @@ class CoreSQS:
         )
 
     def delete_message(self, receipt_handle: str, *, queue_name: str | None = None) -> None:
-        """Compatibility name for explicit receipt deletion."""
+        """Nombre compatible para la eliminación explícita de recibos."""
         self.delete_event(receipt_handle, queue_name=queue_name)
 
     def delete_queue(self, queue_name: str) -> None:

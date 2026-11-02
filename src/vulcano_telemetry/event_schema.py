@@ -1,4 +1,4 @@
-"""JSON event envelope validation without rewriting the source body."""
+"""Validación del sobre JSON del evento sin reescribir el cuerpo original."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _SAFE_TRACE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 @dataclass(frozen=True)
 class Event:
-    """Validated metadata used for SQS attributes and correlation."""
+    """Metadatos validados para los atributos de SQS y la correlación."""
 
     event_id: str
     event_type: str
@@ -41,7 +41,7 @@ def _validate_text_field(envelope: dict[str, Any], name: str, max_length: int) -
 
 
 def parse_event(raw_body: bytes | str) -> Event:
-    """Validate UTF-8 JSON and required fields while leaving raw_body untouched."""
+    """Valida JSON UTF-8 y los campos requeridos sin modificar `raw_body`."""
     try:
         text = raw_body.decode("utf-8") if isinstance(raw_body, bytes) else raw_body
         if not isinstance(text, str):

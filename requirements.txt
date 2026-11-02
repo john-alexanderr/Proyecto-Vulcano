@@ -1,4 +1,4 @@
-# Direct runtime and dev dependencies, pinned. Install in .venv:
+# Dependencias directas de ejecución y desarrollo, fijadas. Instalar en .venv:
 #   python3.14 -m venv .venv
 #   .venv/bin/pip install -r requirements.txt
 botocore==1.43.123
@@ -8,6 +8,6 @@ uvicorn==0.54.0
 requests==2.32.5
 httpx==0.28.1
 
-# Dev / test
+# Desarrollo y pruebas
 pytest==9.2.0
 ruff==0.17.3

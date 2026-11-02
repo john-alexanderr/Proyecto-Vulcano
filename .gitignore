@@ -1,25 +1,25 @@
-# Python
+# Archivos de Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 build/
 dist/
 
-# Virtualenv
+# Entornos virtuales
 .venv/
 
-# Tooling
+# Herramientas de desarrollo
 .pytest_cache/
 .ruff_cache/
 .coverage
 htmlcov/
 
-# Runtime logs
+# Registros de ejecución
 logs/
 *.log
 *.jsonl
 
-# Secrets: never commit local env files
+# Secretos: no incluir archivos de entorno locales en los commits
 .env
 .env.*
 !.env.example

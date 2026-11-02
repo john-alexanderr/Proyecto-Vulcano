@@ -1,4 +1,4 @@
-"""Async SQS consumer with bounded concurrent delivery and SQS-owned redelivery."""
+"""Consumidor asíncrono de SQS con entregas concurrentes acotadas y reentrega gestionada por SQS."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from .webhook_crypto import generate_signature
 
 
 class Dispatcher:
-    """Deliver each SQS receipt once and delete only successful deliveries."""
+    """Entrega cada recibo de SQS una vez y elimina solo las entregas exitosas."""
 
     def __init__(
         self,
@@ -44,7 +44,7 @@ class Dispatcher:
         self._logger = logging.getLogger(__name__) if logger is None else logger
 
     async def process_message(self, message: QueueMessage) -> Event:
-        """Validate and forward the unchanged bytes before acknowledging the receipt."""
+        """Valida y reenvía los bytes sin cambios antes de confirmar el recibo."""
         event = parse_event(message.body)
         body_bytes = message.body.encode("utf-8")
         signature = generate_signature(self._secret, int(time.time()), body_bytes)
@@ -93,7 +93,7 @@ class Dispatcher:
         return event
 
     async def process_batch(self, messages: Sequence[QueueMessage]) -> None:
-        """Process one SQS batch concurrently and classify grouped domain failures."""
+        """Procesa un lote de SQS en paralelo y clasifica los fallos de dominio agrupados."""
         if not messages:
             return
         try:
@@ -137,7 +137,7 @@ class Dispatcher:
             await self.process_next()
 
     async def process_next(self) -> bool:
-        """Receive and dispatch one SQS batch without blocking the event loop."""
+        """Recibe y despacha un lote de SQS sin bloquear el bucle de eventos."""
         messages = await asyncio.to_thread(self._sqs.receive_events)
         if not messages:
             return False
@@ -145,7 +145,7 @@ class Dispatcher:
         return True
 
     async def run_forever(self, *, worker_count: int = 2) -> None:
-        """Supervise the configured number of independent SQS pollers."""
+        """Supervisa la cantidad configurada de consumidores independientes de SQS."""
         if isinstance(worker_count, bool) or not isinstance(worker_count, int) or worker_count < 1:
             raise ValueError("worker_count must be a positive integer")
         async with asyncio.TaskGroup() as task_group:

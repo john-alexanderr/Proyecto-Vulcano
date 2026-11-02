@@ -1,4 +1,4 @@
-"""Import-safe command-line entry point for producing, receiving, and dispatching."""
+"""Punto de entrada de la línea de comandos; importarlo no inicia recursos ni accede a la red."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _port_number(value: str) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the parser without reading configuration or starting resources."""
+    """Crea el analizador sin leer la configuración ni iniciar recursos."""
     parser = argparse.ArgumentParser(
         prog="vulcano-telemetry",
         description="Run the signed webhook-to-SQS event pipeline.",
@@ -164,7 +164,7 @@ def _run_command(args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse first so help is safe, then initialize only the selected runtime."""
+    """Analiza primero para que la ayuda sea segura e inicia solo el entorno seleccionado."""
     args = build_parser().parse_args(argv)
     try:
         return _run_command(args)

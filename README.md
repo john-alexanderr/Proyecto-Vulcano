@@ -1,98 +1,229 @@
-# TP-2: Vulcano Telemetry Event Pipeline
+<div align="center">
 
-A local webhook receiver validates HMAC-SHA256 signatures over the original request bytes, queues events in SQS, and concurrent dispatcher workers forward and sign unchanged bodies for one configured destination. JSON logs use a nonblocking queue and rotate into gzip-compressed files.
+# 🌋 Vulcano Pay
 
-> **Runtime status:** The receiver, SQS adapter, dispatcher, signature handling, structured logging, CLI, offline tests, and opt-in LocalStack integration tests implement the current rubric. The project targets Python 3.14; this does not claim a Python 3.14 test result.
+### TP-2 · Sistema de procesamiento de eventos
 
-## Quick path
+**Webhooks HMAC-SHA256 · AWS SQS · LocalStack · Observabilidad JSON**
 
-1. Copy `.env.example` to `.env` and replace the webhook-secret placeholder locally. Keep secrets and AWS credentials in environment variables; never put a secret in a CLI argument or commit `.env`.
-2. Export the local settings into the shell:
-   ```bash
-   set -a
-   . ./.env
-   set +a
-   ```
-3. Start LocalStack separately at the configured endpoint, then create the queues and redrive policy:
-   ```bash
-   bash scripts/localstack_bootstrap.sh
-   ```
-4. Install the pinned dependencies:
-   ```bash
-   python3.14 -m venv .venv
-   .venv/bin/pip install -r requirements.txt
-   ```
-5. In separate terminals, start the dispatcher and receiver:
-   ```bash
-   PYTHONPATH=src .venv/bin/python -m app_operator start-dispatcher
-   PYTHONPATH=src .venv/bin/python -m app_operator start-receiver
-   ```
+![Python 3.14](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
+![AWS SQS](https://img.shields.io/badge/Messaging-AWS%20SQS-FF9900?logo=amazonaws&logoColor=white)
+![LocalStack](https://img.shields.io/badge/LocalStack-local-5D5FEF)
+![HMAC](https://img.shields.io/badge/Security-HMAC--SHA256-6A5ACD)
 
-The receiver listens on `0.0.0.0:8000` by default. The destination must be running at `VULCANO_DESTINATION_URL` (the local example is `http://localhost:8080/webhook`). Boto3 calls run in worker threads; two independent dispatcher pollers are supervised with `asyncio.TaskGroup`, and each `ReceiveMessage` call requests one event. Each receipt gets one HTTP attempt; failed messages remain undeleted for SQS redelivery and eventual DLQ handling. The rubric targets Python 3.14; if the local interpreter is 3.12, treat that as an unverified local compatibility runtime, not a 3.14 verification result.
+</div>
 
-To enqueue a validated event directly for a dispatcher demo, use `produce-sqs` with JSON or standard input:
+Vulcano Pay recibe eventos de pago mediante webhooks, verifica su autenticidad y los encola para que un worker los entregue a un destino configurado. LocalStack emula SQS durante el desarrollo, mientras que los logs JSON se escriben de forma no bloqueante y se archivan comprimidos con Gzip.
+
+> [!NOTE]
+> El proyecto apunta a **Python 3.14** según la rúbrica. La última verificación local se ejecutó con Python 3.12.3; por lo tanto, **Python 3.14 todavía no está verificado**.
+
+## 🧭 Contenido
+
+- [Arquitectura](#-arquitectura)
+- [Contratos principales](#-contratos-principales)
+- [Inicio rápido](#-inicio-rápido)
+- [CLI](#-cli)
+- [Configuración](#-configuración)
+- [Pruebas](#-pruebas)
+- [Estructura del proyecto](#-estructura-del-proyecto)
+- [Alcance y mejora futura](#-alcance-y-mejora-futura)
+
+## 🏗️ Arquitectura
+
+```mermaid
+flowchart LR
+    Producer["Sistema emisor"] -->|POST /webhook<br/>body crudo + firma| Receiver["Receptor FastAPI"]
+    Receiver -->|202 después de SendMessage| Queue[["SQS Standard<br/>vulcano-events-queue"]]
+    Queue -->|Long Polling| Worker["Webhook Dispatcher"]
+    Worker -->|POST firmado<br/>mismos bytes| Destination["Destino configurado"]
+    Worker -->|Borrar solo tras éxito| Queue
+    Queue -->|maxReceiveCount alcanzado| DLQ[["vulcano-events-dlq"]]
+    Queue -.->|Fallo: no borrar<br/>SQS vuelve a entregar| Worker
+
+    Receiver --> LogQueue[("QueueHandler")]
+    Worker --> LogQueue
+    LogQueue --> Listener["QueueListener"]
+    Listener --> Logs["JSON rotado<br/>2 MiB · 3 archivos .gz"]
+```
+
+La separación entre el receptor y el worker permite aceptar la notificación sin realizar la entrega externa dentro de la misma solicitud HTTP. Boto3 es síncrono: sus llamadas se ejecutan en hilos de trabajo; `asyncio.TaskGroup` supervisa los pollers del dispatcher.
+
+## 🔐 Contratos principales
+
+| Componente | Contrato |
+|---|---|
+| Receptor | `POST /webhook`; verifica la firma antes de parsear el JSON. Devuelve `202` solo si SQS aceptó el mensaje. |
+| Firma | `X-Webhook-Signature: t=<timestamp>,v1=<hex>`; HMAC-SHA256 sobre `f"{timestamp}.".encode() + raw_body`. |
+| Evento | JSON con `event_id`, `event_type`, `occurred_at`, `trace_id` y `payload`. |
+| SQS | Cola principal `vulcano-events-queue`, DLQ `vulcano-events-dlq`; atributos `TraceId`, `EventTopic` y `Timestamp`. |
+| Worker | Hace un intento HTTP por recepción y borra el mensaje solo tras una respuesta exitosa. Si falla, lo deja para redelivery de SQS. |
+| Logs | JSON UTC mediante `QueueHandler`/`QueueListener`; archivos de 2 MiB y hasta 3 respaldos Gzip con renombrado atómico. |
+
+### Respuestas HTTP
+
+| Situación | Respuesta |
+|---|---:|
+| Firma ausente/inválida o timestamp fuera de tolerancia | `401 Unauthorized` |
+| JSON inválido o evento incompleto | `400 Bad Request` |
+| Publicación exitosa en SQS | `202 Accepted` |
+| Error al publicar en SQS | `503 Service Unavailable` |
+
+### Ejemplo de evento
+
+```json
+{
+  "event_id": "evt-1",
+  "event_type": "payment.settled",
+  "occurred_at": "2026-11-02T12:00:00Z",
+  "trace_id": "trace-1",
+  "payload": {
+    "transaction_id": "tx-123",
+    "amount": 350.00,
+    "currency": "ARS"
+  }
+}
+```
+
+## 🚀 Inicio rápido
+
+### 1. Preparar Python y configuración
+
+Se recomienda Python 3.14, que es la versión objetivo de la rúbrica:
+
+```bash
+python3.14 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env
+```
+
+Editá `.env` y reemplazá `VULCANO_WEBHOOK_SECRET` por una clave local segura. El ejemplo incluye `test/test` únicamente para LocalStack; **no uses esos valores para AWS real**.
+
+Exportá las variables en la terminal:
+
+```bash
+set -a
+. ./.env
+set +a
+```
+
+### 2. Iniciar LocalStack y crear las colas
+
+Iniciá LocalStack en `http://localhost:4566`. El script requiere AWS CLI disponible en el `PATH` y configura la cola, la visibilidad y la política de redrive:
+
+```bash
+bash scripts/localstack_bootstrap.sh
+```
+
+Valores locales predeterminados: `VisibilityTimeout=30` segundos, `maxReceiveCount=5` y `WaitTimeSeconds=10`. La rúbrica no fija estos números; están documentados como valores del proyecto.
+
+### 3. Iniciar los procesos
+
+El receptor escucha por defecto en `0.0.0.0:8000`. El destino HTTP también debe estar activo en `VULCANO_DESTINATION_URL` (por defecto, `http://localhost:8080/webhook`). Ejecutá cada proceso en una terminal diferente:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m app_operator start-dispatcher
+```
+
+```bash
+PYTHONPATH=src .venv/bin/python -m app_operator start-receiver
+```
+
+Para comprobar la ayuda sin iniciar clientes ni servicios:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m app_operator --help
+```
+
+## 🧰 CLI
+
+| Subcomando | Uso |
+|---|---|
+| `produce-sqs` | Publica un evento validado directamente en SQS. No prueba la firma del receptor. |
+| `start-receiver` | Inicia el servidor local `POST /webhook`. |
+| `start-dispatcher` | Ejecuta los pollers SQS y envía los eventos al destino configurado. |
+
+Ejemplo de publicación directa:
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m app_operator produce-sqs \
-  --event-json '{"event_id":"evt-1","event_type":"telemetry.created","occurred_at":"2026-01-02T03:04:05Z","trace_id":"trace-1","payload":{"temperature":21.5}}'
+  --event-json '{"event_id":"evt-1","event_type":"payment.settled","occurred_at":"2026-11-02T12:00:00Z","trace_id":"trace-1","payload":{"transaction_id":"tx-123"}}'
 ```
 
-This command publishes directly to SQS and does not exercise receiver signature validation. Webhook senders must send `X-Webhook-Signature: t=<timestamp>,v1=<hex>` using HMAC-SHA256 over `f"{timestamp}.".encode() + raw_body`.
+Un emisor genera la firma así; `raw_body` debe contener exactamente los bytes que enviará:
 
-## Assignment contract
+```python
+signature = generate_signature(secret, timestamp, raw_body)
+header = f"t={timestamp},v1={signature}"
+```
 
-| Area | Contract |
-|---|---|
-| Ingress | `POST /webhook`; validate `X-Webhook-Signature` against the original raw body and its timestamp before enqueueing. |
-| Event | JSON envelope with at least `event_id`, `event_type`, `occurred_at`, `trace_id`, and `payload`. |
-| Queue | Standard `vulcano-events-queue`, with `RedrivePolicy` configured to `vulcano-events-dlq`; message attributes carry `TraceId`, `EventTopic`, and `Timestamp`. |
-| Delivery | One destination is configured outside the message. The worker forwards the unchanged body, signs those exact bytes, adds `X-Trace-Id`, then deletes only after a successful HTTP response. |
-| Retry | SQS Standard is at-least-once. SQS visibility-based redelivery and DLQ redrive only; duplicates are possible and there is no exactly-once claim. |
-| Logs | Nonblocking JSON logging with `QueueHandler`/`QueueListener`, UTC timestamps, `TraceId`, `MessageId`, `WebhookId`, process/thread context, and 2 MiB / 3-backup gzip rotation using atomic rename. |
+## ⚙️ Configuración
 
-The dispatcher timeout is 3 seconds to connect and 10 seconds to read. A future destination-side deduplication window keyed by `event_id` could mitigate Standard SQS duplicates; that changes destination behavior and is not implemented here. See [the detailed requirements](docs/requirements.md) for signature bytes, queue settings, component responsibilities, security rules, and the test plan.
+| Variable | Valor local | Propósito |
+|---|---|---|
+| `VULCANO_WEBHOOK_SECRET` | Requerida; reemplazar el placeholder | Clave HMAC. No se acepta como argumento CLI. |
+| `VULCANO_SQS_ENDPOINT_URL` | `http://localhost:4566` | Endpoint de LocalStack. |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `test` / `test` para LocalStack | Credenciales simuladas; remoto AWS usa el credential chain de Boto3. |
+| `AWS_DEFAULT_REGION` | `us-east-1` | Región SQS. |
+| `VULCANO_QUEUE_NAME` / `VULCANO_DLQ_NAME` | `vulcano-events-queue` / `vulcano-events-dlq` | Cola principal y DLQ. |
+| `VULCANO_SQS_VISIBILITY_TIMEOUT_SECONDS` | `30` | Ventana antes de que un mensaje fallido vuelva a estar visible. |
+| `VULCANO_SQS_MAX_RECEIVE_COUNT` | `5` | Umbral de redrive a la DLQ. |
+| `VULCANO_RECEIVER_WAIT_TIME_SECONDS` | `10` | Long polling, válido entre 1 y 20 segundos. |
+| `VULCANO_DESTINATION_URL` | `http://localhost:8080/webhook` | Destino fuera del mensaje SQS. |
+| `VULCANO_TOLERANCE_SEC` | `300` | Tolerancia temporal de la firma. |
+| `VULCANO_LOG_PATH` | `logs/vulcano_events.log` | Archivo activo de logs JSON. |
 
-## Verification
+Las variables de cola y destino se validan antes de iniciar cada comando. Para destinos distintos por cliente, se debe resolver un identificador mediante configuración confiable; no se debe aceptar una URL arbitraria incluida en un evento.
 
-Run offline tests without LocalStack:
+## 📊 Observabilidad
+
+Los logs se envían a disco exclusivamente a través de `QueueHandler` y `QueueListener`. Cada línea JSON incluye timestamp ISO 8601 UTC, nivel, evento, mensaje, proceso e hilo; agrega `TraceId`, `MessageId` y `WebhookId` cuando corresponda. Las excepciones se serializan recursivamente con sus grupos y notas.
+
+El sistema **no registra** el body, secretos ni el valor utilizable de `X-Webhook-Signature`: solo registra si la firma estuvo presente y si pasó la validación. Los logs rotan a los 2 MiB, conservan tres respaldos y comprimen cada archivo `.gz` mediante un temporal y un renombrado atómico.
+
+## 🧪 Pruebas
+
+Pruebas unitarias y offline:
 
 ```bash
+.venv/bin/ruff check src tests
 .venv/bin/pytest -m "not localstack"
 ```
 
-LocalStack integration tests are explicitly opt-in. Start LocalStack, export the example environment (including its dummy `test` credentials), then run:
+Pruebas de integración/caos con LocalStack (optativas):
 
 ```bash
 VULCANO_RUN_LOCALSTACK_TESTS=1 .venv/bin/pytest -m localstack
 ```
 
-The offline `test_chaos.py` covers altered-body and wrong-key 401 responses plus a one-hour stale timestamp. `test_forensic_log.py` covers UTC context, safe exception groups, and gzip archives. When opted in, an unavailable LocalStack endpoint is a test failure rather than a skipped integration run; the tests use isolated queues and cover poison-message DLQ redrive.
+Incluyen firma alterada, clave incorrecta, timestamp de una hora, mensajes venenosos y llegada a la DLQ, además de validación JSON UTC y descompresión Gzip. Si se opta por ejecutar las pruebas LocalStack y el servicio no está disponible, la prueba debe fallar visiblemente; no se silencian errores.
 
-## Package layout
+## 🗂️ Estructura del proyecto
 
 ```text
-src/vulcano_telemetry/
-  app_operator.py
-  config.py
-  core_sqs.py
-  dispatcher.py
-  event_schema.py
-  exceptions.py
-  logging_engine.py
-  sanitizer.py
-  webhook_crypto.py
-  webhook_receiver.py
-src/app_operator.py  # top-level executable entry point
+src/
+├── app_operator.py              # Punto de entrada CLI
+└── vulcano_telemetry/
+    ├── __init__.py              # API pública del paquete
+    ├── app_operator.py          # Coordinación y manejo de ExceptionGroup
+    ├── config.py                # Configuración de entorno
+    ├── core_sqs.py              # Productor, consumidor y DLQ Boto3
+    ├── dispatcher.py            # Long polling y envío HTTP
+    ├── event_schema.py          # Validación del evento sin reserializar el body
+    ├── exceptions.py            # Excepciones semánticas
+    ├── logging_engine.py        # Logging JSON asíncrono y Gzip
+    ├── sanitizer.py             # Validadores CLI/configuración
+    ├── webhook_crypto.py        # HMAC-SHA256 y timestamp
+    └── webhook_receiver.py      # Receptor FastAPI
 tests/
-scripts/localstack_bootstrap.sh
-docs/requirements.md
-requirements.txt
+├── test_chaos.py
+├── test_forensic_log.py
+└── ...
 ```
 
-`config.py` centralizes validated environment parsing so each command shares defaults while `--help` remains safe: parsing help does not load configuration, create clients, or start logging. The required top-level CLI delegates to `vulcano_telemetry.app_operator`. Metadata targets Python 3.14; the local runtime may differ.
+## 💡 Alcance y mejora futura
 
-## Configuration
+Esta entrega sigue la consigna: los reintentos y la DLQ son responsabilidad de SQS; no se agrega un loop de reintentos en la aplicación ni un store SQLite de idempotencia. Como SQS Standard ofrece entrega *at-least-once*, un mismo `event_id` puede llegar más de una vez.
 
-LocalStack uses environment-provided credentials, falling back to dummy `test` / `test` values only for a loopback LocalStack endpoint. Those values are never passed to remote AWS endpoints. Queue defaults are a 30-second visibility timeout, `maxReceiveCount` 5, and a 10-second long-poll wait. Logging rotation is fixed by the rubric at 2 MiB with 3 gzip backups. See [the requirements](docs/requirements.md) for the validated environment contract.
-
-Do not place a destination URL supplied by an event directly into a message and trust it. If destinations vary by client, put a client identifier in the event and resolve it through an allowlist or trusted configuration.
+**Mejora posible, no implementada:** pedir al destino que deduplique usando `event_id` como clave de idempotencia. Sería valioso para notificaciones de pago porque reduce efectos duplicados; requiere soporte en cada destino y no convierte por sí solo una llamada HTTP externa en una operación *exactly-once*. Los detalles están en [la especificación](docs/requirements.md).

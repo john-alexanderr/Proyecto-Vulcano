@@ -18,5 +18,5 @@ target-version = "py314"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-# E722: bare except. BLE001: blind except (Exception / BaseException).
+# E722: excepción sin tipo. BLE001: captura indiscriminada (Exception / BaseException).
 select = ["E", "F", "B", "BLE"]

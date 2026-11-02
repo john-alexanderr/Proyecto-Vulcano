@@ -1,7 +1,7 @@
-"""Validated environment configuration, loaded only when a CLI command runs.
+"""Configuración de entorno validada, cargada solo al ejecutar un comando de la CLI.
 
-Keeping environment parsing here avoids duplicating defaults and lets argparse
-render help without reading secrets or initializing AWS clients.
+Centralizar aquí el análisis del entorno evita duplicar valores predeterminados y permite que
+argparse muestre la ayuda sin leer secretos ni inicializar clientes de AWS.
 """
 
 from __future__ import annotations
@@ -46,7 +46,9 @@ def _read_integer(
 
 @dataclass(frozen=True)
 class Settings:
-    """Settings for one runtime process; all defaults match the project docs."""
+    """Configuración de un proceso; todos los valores predeterminados
+    coinciden con la documentación.
+    """
 
     webhook_secret: str | None = None
     sqs_endpoint_url: str | None = "http://localhost:4566"
@@ -70,7 +72,7 @@ class Settings:
         require_secret: bool = False,
         require_destination: bool = False,
     ) -> Settings:
-        """Load and validate configuration without creating clients or handlers."""
+        """Carga y valida la configuración sin crear clientes ni manejadores."""
         environment = os.environ if environ is None else environ
         secret = environment.get("VULCANO_WEBHOOK_SECRET")
         if require_secret:
